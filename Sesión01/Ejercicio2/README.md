@@ -10,14 +10,14 @@ sobre el proyecto Configure>Convert to Maven Project.
 (Observaciones: escoger unas coordenadas adecuadas para el proyecto (nombre de 
 paquete, nombre de artefacto). 
 
-## Solucion
+## Solución
 
-Para crear el projecto desde la consola se utilizo el siguiente comando
+Para crear el proyecto desde la consola se utilizó el siguiente comando:
 
 ```
 mvn archetype:generate "-DgroupId=com.practicas.app" "-DartifactId=appdesdeconsola" "-DarchetypeArtifactId=maven-archetype-quickstart" "-DarchetypeVersion=1.4" "-DinteractiveMode=false"
 ```
 
-El projecto creado desde maven se llama my app.
+El proyecto creado desde maven se llama my app.
 
-El projecto java convertido a maven desde Eclipse se llama ProjectoJava
+El proyecto java convertido a maven desde Eclipse se llama ProjectoJava.
