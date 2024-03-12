@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project  name="Chat1.0" basedir="." default="javadoc">
+  <description>
+	Práctica obligatoria 1 de sockets
+  </description>
+	
+  <property name="doc.dir" value="doc"/>
+  <property name="source.dir" value="src/main/java"/>
+	
+  <target name="inicio" description="Crea timestamp y carpetas">
+      <mkdir dir="${doc.dir}"/>
+  </target>
+	
+  <target name="javadoc" depends="inicio" description="generate documentation">
+      <javadoc sourcepath="${source.dir}" destdir="${doc.dir}"/>
+  </target>
+	
+  <target name="limpiar" description="generate documentation">
+    <delete dir="${doc.dir}"/>
+  </target>
+</project>
