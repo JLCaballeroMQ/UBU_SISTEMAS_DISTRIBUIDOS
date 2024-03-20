@@ -2,18 +2,20 @@ package es.ubu.lsi.server;
 
 import es.ubu.lsi.common.ChatMessage;
 
+import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
-class ChatServerImpl implements ChatServer {
+public class ChatServerImpl implements ChatServer {
     private int port;
     private boolean running = false;
     private ServerSocket serverSocket;
-    private ConcurrentHashMap<Integer, ServerThreadForClient> clients = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, ServerThreadForClient> clientThreads = new ConcurrentHashMap<>();
+    private final AtomicInteger clientIdGenerator = new AtomicInteger(0);
 
     public ChatServerImpl(int port) {
         this.port = port;
@@ -21,19 +23,21 @@ class ChatServerImpl implements ChatServer {
 
     @Override
     public void startup() throws IOException {
-        serverSocket = new ServerSocket(port);
         running = true;
-        System.out.println("Servidor de Chat Iniciado en puerto " + port);
+        serverSocket = new ServerSocket(port);
+        System.out.println("Servidor Chat ejecutandose en puerto: " + port);
 
-        while (running) {
-            try {
+        try {
+            while (running) {
                 Socket clientSocket = serverSocket.accept();
-                ServerThreadForClient clientThread = new ServerThreadForClient(clientSocket, this);
-                clients.put(clientThread.getClientId(), clientThread);
+                int clientId = clientIdGenerator.incrementAndGet();
+                ServerThreadForClient clientThread = new ServerThreadForClient(clientSocket, clientId);
+                clientThreads.put(clientId, clientThread);
                 clientThread.start();
-            } catch (IOException e) {
-                if (!running) break;
-                System.err.println("Error aceptando conexion de cliente: " + e.getMessage());
+            }
+        } finally {
+            if (serverSocket != null) {
+                serverSocket.close();
             }
         }
     }
@@ -41,79 +45,91 @@ class ChatServerImpl implements ChatServer {
     @Override
     public void shutdown() throws IOException {
         running = false;
-        for (ServerThreadForClient client : clients.values()) {
-            client.disconnectClient();
+        for (ServerThreadForClient clientThread : clientThreads.values()) {
+            clientThread.interrupt();
         }
-        if (serverSocket != null) {
+        if (!serverSocket.isClosed()) {
             serverSocket.close();
         }
-        System.out.println("Servidor Chat Shutdown ...");
+        System.out.println("Servidor Chat apagandose.");
     }
 
     @Override
-    public void broadcast(ChatMessage message) throws IOException {
-        for (ServerThreadForClient client : clients.values()) {
-            client.sendMessage(message);
+    public void broadcast(ChatMessage message) {
+        for (ServerThreadForClient clientThread : clientThreads.values()) {
+            clientThread.sendMessage(message);
         }
     }
 
     @Override
-    public void remove(int id) throws IOException {
-        ServerThreadForClient client = clients.remove(id);
-        if (client != null) {
-            client.disconnectClient();
+    public void remove(int id) {
+        ServerThreadForClient clientThread = clientThreads.remove(id);
+        if (clientThread != null) {
+            clientThread.interrupt();
         }
     }
-
-    public class ServerThreadForClient extends Thread {
+    private class ServerThreadForClient extends Thread {
         private Socket socket;
-        private ChatServerImpl server;
         private ObjectOutputStream out;
         private ObjectInputStream in;
-        private int clientId;
-        private int clientCount = 0;
+        private final int clientId;
 
-        public ServerThreadForClient(Socket socket, ChatServerImpl server) {
+        public ServerThreadForClient(Socket socket, int clientId) {
             this.socket = socket;
-            this.server = server;
-            this.clientId = ++clientCount;
+            this.clientId = clientId;
             try {
                 out = new ObjectOutputStream(socket.getOutputStream());
                 in = new ObjectInputStream(socket.getInputStream());
             } catch (IOException e) {
-                System.err.println("Error configurando streams: " + e.getMessage());
+                System.out.println("Error configurando streams cliente: " + e.getMessage());
             }
         }
 
         public void run() {
             try {
-                ChatMessage message;
-                while ((message = (ChatMessage) in.readObject()) != null) {
-                    // Process message based on its type
-                    server.broadcast(message);
+                ChatMessage messageInput;
+                while ((messageInput = (ChatMessage) in.readObject()) != null) {
+                    switch (messageInput.getType()) {
+                        case MESSAGE:
+                        case LOGOUT:
+                            broadcast(messageInput);
+                            if (messageInput.getType() == ChatMessage.MessageType.LOGOUT) {
+                                return;
+                            }
+                            break;
+                        default:
+                            System.out.println("Unhandled message type: " + messageInput.getType());
+                    }
                 }
             } catch (IOException | ClassNotFoundException e) {
-                System.err.println("Error en ServerThreadForClient: " + e.getMessage());
+                System.out.println("Cliente desconectado: " + clientId);
             } finally {
+                remove(clientId);
                 try {
-                    server.remove(clientId);
+                    socket.close();
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    System.out.println("Error cerrando socket de cliente: " + e.getMessage());
                 }
             }
         }
 
-        public void sendMessage(ChatMessage message) throws IOException {
-            out.writeObject(message);
-            out.flush();
+        public void sendMessage(ChatMessage message) {
+            try {
+                out.writeObject(message);
+                out.flush();
+            } catch (IOException e) {
+                System.out.println("Error enviando mensaje al cliente " + clientId + ": " + e.getMessage());
+            }
         }
-
-        public int getClientId() {
-            return clientId;
-        }
-
-        public void disconnectClient() throws IOException {
-            socket.close();
+    }
+    public static void main(String[] args) {
+        int port = 1500; // Default port
+        ChatServerImpl server = new ChatServerImpl(port);
+        try {
+            server.startup();
+        } catch (IOException e) {
+            System.out.println("Falla al iniciar el servidor: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }
