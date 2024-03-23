@@ -6,6 +6,8 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.Scanner;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ChatClientImpl implements ChatClient {
     private static final int DEFAULT_PORT = 1500;
@@ -14,6 +16,7 @@ public class ChatClientImpl implements ChatClient {
     private ObjectOutputStream output;
     private String host;
     private String nickname;
+    private Set<String> usuariosBloqueados = ConcurrentHashMap.newKeySet();
 
     /**
      * Constructor.
@@ -28,31 +31,37 @@ public class ChatClientImpl implements ChatClient {
 
     @Override
     public void start() throws IOException {
-        // Establish connection with the server using the default port
+        // Establecer conexion con el servidor usando el puerto por defecto
         socket = new Socket(host, DEFAULT_PORT);
-        System.out.println("Connected to chat server at " + host + ":" + DEFAULT_PORT + " as " + nickname);
+        System.out.println("Connectado al chat server en " + host + ":" + DEFAULT_PORT + " a " + nickname);
 
-        // Setup streams
         output = new ObjectOutputStream(socket.getOutputStream());
         input = new ObjectInputStream(socket.getInputStream());
 
-        // Send a login message
-        sendMessage(new ChatMessage(0, ChatMessage.MessageType.MESSAGE, nickname + " has joined the chat."));
+        // Enviando mensaje de login
+        sendMessage(new ChatMessage(0, ChatMessage.MessageType.MESSAGE, nickname + " se ha unido al chat."));
 
-        // Start a thread to listen for messages from the server
         new Thread(new ChatClientListener()).start();
 
-        // Read messages from stdin and send to server
         try (Scanner scanner = new Scanner(System.in)) {
             while (true) {
-                String messageText = scanner.nextLine();
-                if (messageText.equalsIgnoreCase("logout")) {
-                    sendMessage(new ChatMessage(0, ChatMessage.MessageType.LOGOUT, "Client logging out"));
+                String input = scanner.nextLine();
+                if (input.startsWith("ban ")) {
+                    String userToBan = input.substring(4);
+                    usuariosBloqueados.add(userToBan);
+                    System.out.println("Usuario " + userToBan + " ha sido baneado.");
+                } else if (input.startsWith("unban ")) {
+                    String userToUnban = input.substring(6);
+                    usuariosBloqueados.remove(userToUnban);
+                    System.out.println("Usuario " + userToUnban + " ha dejado de ser baneado.");
+                } else if (input.equalsIgnoreCase("logout")) {
+                    sendMessage(new ChatMessage(0, ChatMessage.MessageType.LOGOUT, "Cliente logging out"));
                     break;
+                } else {
+                    sendMessage(new ChatMessage(0, ChatMessage.MessageType.MESSAGE, input));
                 }
-                sendMessage(new ChatMessage(0, ChatMessage.MessageType.MESSAGE, messageText));
             }
-        } finally {
+        }finally {
             disconnect();
         }
     }
@@ -70,9 +79,9 @@ public class ChatClientImpl implements ChatClient {
             if (input != null) input.close();
             if (output != null) output.close();
             if (socket != null) socket.close();
-            System.out.println("Disconnected from chat server.");
+            System.out.println("Desconectado de servidor de chat.");
         } catch (IOException e) {
-            System.out.println("Error disconnecting: " + e.getMessage());
+            System.out.println("Error desconectando: " + e.getMessage());
         }
     }
     private class ChatClientListener implements Runnable {
@@ -81,11 +90,20 @@ public class ChatClientImpl implements ChatClient {
             try {
                 while (true) {
                     ChatMessage message = (ChatMessage) input.readObject();
-                    System.out.println(message.getMessage());
+
+                    String senderNickname = extraerNicknameEnviado(message);
+                    if (!usuariosBloqueados.contains(senderNickname)) {
+                        System.out.println(message.getMessage());
+                    }
                 }
             } catch (IOException | ClassNotFoundException e) {
                 System.out.println("Desconectado de el servidor.");
             }
+        }
+
+        private String extraerNicknameEnviado(ChatMessage message) {
+
+            return ""; // Retorna el nickname extraído
         }
     }
 
