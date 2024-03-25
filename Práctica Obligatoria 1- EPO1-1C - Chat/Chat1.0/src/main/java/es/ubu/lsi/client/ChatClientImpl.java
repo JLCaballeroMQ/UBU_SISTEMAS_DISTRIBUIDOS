@@ -9,6 +9,12 @@ import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Clase ChatClientImpl implementacion de interfaz ChatClient
+ * @author José Luis Caballero MQ
+ * @Version 1.0
+ * Repositorio GitHub: https://github.com/JLCaballeroMQ/UBU_SISTEMAS_DISTRIBUIDOS
+ */
 public class ChatClientImpl implements ChatClient {
     private static final int DEFAULT_PORT = 1500;
     private Socket socket;

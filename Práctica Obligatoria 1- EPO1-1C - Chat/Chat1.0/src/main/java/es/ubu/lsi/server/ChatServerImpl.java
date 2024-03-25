@@ -10,6 +10,12 @@ import java.net.Socket;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Clase ChatServerImpl implementacion de interfaz ChatServer
+ * @author José Luis Caballero MQ
+ * @Version 1.0
+ * Repositorio GitHub: https://github.com/JLCaballeroMQ/UBU_SISTEMAS_DISTRIBUIDOS
+ */
 public class ChatServerImpl implements ChatServer {
     private int port;
     private boolean running = false;
