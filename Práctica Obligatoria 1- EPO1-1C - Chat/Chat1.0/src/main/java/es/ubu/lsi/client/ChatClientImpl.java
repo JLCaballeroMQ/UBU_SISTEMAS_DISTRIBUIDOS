@@ -10,9 +10,13 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Clase ChatClientImpl implementacion de interfaz ChatClient
+ * Clase que representa un cliente de chat.
+ * Implementa la interfaz ChatClient para la comunicación con el servidor de chat.
+ * Permite enviar y recibir mensajes, así como gestionar la conexión con el servidor.
+ * También ofrece funcionalidades para bloquear y desbloquear usuarios.
+ *
  * @author José Luis Caballero MQ
- * @Version 1.0
+ * @version 1.0
  * Repositorio GitHub: https://github.com/JLCaballeroMQ/UBU_SISTEMAS_DISTRIBUIDOS
  */
 public class ChatClientImpl implements ChatClient {
@@ -25,26 +29,34 @@ public class ChatClientImpl implements ChatClient {
     private Set<String> usuariosBloqueados = ConcurrentHashMap.newKeySet();
 
     /**
-     * Constructor.
+     * Crea una nueva instancia de un cliente de chat.
      *
-     * @param host     el servidor host, "localhost" es usado por defecto si no el valor es null.
-     * @param nickname el sobrenombre del usuario.
+     * @param host La dirección IP o el nombre de dominio del servidor de chat.
+     * @param nickname El sobrenombre que el usuario usará en el chat.
      */
     public ChatClientImpl(String host, String nickname) {
         this.host = host != null ? host : "localhost";
         this.nickname = nickname;
     }
 
+    /**
+     * Inicia el cliente de chat.
+     * Establece la conexión con el servidor, envía el mensaje de inicio de sesión,
+     * y comienza a escuchar los mensajes entrantes en un hilo separado.
+     * Permite enviar mensajes, bloquear usuarios, desbloquear usuarios y cerrar la conexión.
+     *
+     * @throws IOException si hay algún error de entrada/salida.
+     */
     @Override
     public void start() throws IOException {
-        // Establecer conexion con el servidor usando el puerto por defecto
+        // Establecer conexión con el servidor usando el puerto por defecto
         socket = new Socket(host, DEFAULT_PORT);
-        System.out.println("Connectado al chat server en " + host + ":" + DEFAULT_PORT + " a " + nickname);
+        System.out.println("Conectado al servidor de chat en " + host + ":" + DEFAULT_PORT + " como " + nickname);
 
         output = new ObjectOutputStream(socket.getOutputStream());
         input = new ObjectInputStream(socket.getInputStream());
 
-        // Enviando mensaje de login
+        // Enviar mensaje de inicio de sesión
         sendMessage(new ChatMessage(0, ChatMessage.MessageType.MESSAGE, nickname + " se ha unido al chat."));
 
         new Thread(new ChatClientListener()).start();
@@ -55,29 +67,38 @@ public class ChatClientImpl implements ChatClient {
                 if (input.startsWith("ban ")) {
                     String userToBan = input.substring(4);
                     usuariosBloqueados.add(userToBan);
-                    System.out.println("Usuario " + userToBan + " ha sido baneado.");
+                    System.out.println("Usuario " + userToBan + " ha sido bloqueado.");
                 } else if (input.startsWith("unban ")) {
                     String userToUnban = input.substring(6);
                     usuariosBloqueados.remove(userToUnban);
-                    System.out.println("Usuario " + userToUnban + " ha dejado de ser baneado.");
+                    System.out.println("Usuario " + userToUnban + " ha sido desbloqueado.");
                 } else if (input.equalsIgnoreCase("logout")) {
-                    sendMessage(new ChatMessage(0, ChatMessage.MessageType.LOGOUT, "Cliente logging out"));
+                    sendMessage(new ChatMessage(0, ChatMessage.MessageType.LOGOUT, "Cliente desconectándose"));
                     break;
                 } else {
                     sendMessage(new ChatMessage(0, ChatMessage.MessageType.MESSAGE, input));
                 }
             }
-        }finally {
+        } finally {
             disconnect();
         }
     }
 
+    /**
+     * Envía un mensaje al servidor de chat.
+     *
+     * @param message El mensaje a enviar, encapsulado en un objeto {@link ChatMessage}.
+     * @throws IOException Si ocurre un error al enviar el mensaje.
+     */
     @Override
     public void sendMessage(ChatMessage message) throws IOException {
         output.writeObject(message);
         output.flush();
     }
 
+    /**
+     * Desconecta el cliente del servidor de chat.
+     */
     @Override
     public void disconnect() {
         try {
@@ -85,11 +106,16 @@ public class ChatClientImpl implements ChatClient {
             if (input != null) input.close();
             if (output != null) output.close();
             if (socket != null) socket.close();
-            System.out.println("Desconectado de servidor de chat.");
+            System.out.println("Desconectado del servidor de chat.");
         } catch (IOException e) {
-            System.out.println("Error desconectando: " + e.getMessage());
+            System.out.println("Error al desconectar: " + e.getMessage());
         }
     }
+
+    /**
+     * Hilo que escucha los mensajes entrantes del servidor de chat.
+     * Los mensajes son mostrados en la consola, excepto si el remitente está bloqueado por el cliente.
+     */
     private class ChatClientListener implements Runnable {
         @Override
         public void run() {
@@ -97,36 +123,48 @@ public class ChatClientImpl implements ChatClient {
                 while (true) {
                     ChatMessage message = (ChatMessage) input.readObject();
 
-                    String senderNickname = extraerNicknameEnviado(message);
+                    String senderNickname = extractSenderNickname(message);
                     if (!usuariosBloqueados.contains(senderNickname)) {
                         System.out.println(message.getMessage());
                     }
                 }
             } catch (IOException | ClassNotFoundException e) {
-                System.out.println("Desconectado de el servidor.");
+                System.out.println("Desconectado del servidor.");
             }
         }
 
-        private String extraerNicknameEnviado(ChatMessage message) {
-
-            return ""; // Retorna el nickname extraído
+        /**
+         * Extrae el sobrenombre del remitente de un mensaje.
+         *
+         * @param message el mensaje del que se extraerá el remitente.
+         * @return el sobrenombre del remitente.
+         */
+        private String extractSenderNickname(ChatMessage message) {
+            // Implementación para extraer el sobrenombre del remitente de un mensaje
+            // Asumimos que el sobrenombre del remitente está en el inicio del mensaje seguido por ":"
+            String content = message.getMessage();
+            int colonIndex = content.indexOf(":");
+            if (colonIndex != -1) {
+                return content.substring(0, colonIndex);
+            }
+            return "Anónimo"; // Retornamos "Anónimo" si no podemos extraer el sobrenombre
         }
     }
 
     /**
-     * The main method to start the chat client.
+     * Método principal para iniciar el cliente de chat desde la línea de comandos.
      *
-     * @param args command-line arguments for hostname and nickname.
+     * @param args argumentos de la línea de comandos para el nombre de host y el sobrenombre del usuario.
      */
     public static void main(String[] args) {
         String host = args.length > 0 ? args[0] : null;
-        String nickname = args.length > 1 ? args[1] : "Anonimo";
+        String nickname = args.length > 1 ? args[1] : "Anónimo";
 
         try {
             ChatClientImpl client = new ChatClientImpl(host, nickname);
             client.start();
         } catch (IOException e) {
-            System.out.println("Error iniciando el chat cliente : " + e.getMessage());
+            System.out.println("Error al iniciar el cliente de chat: " + e.getMessage());
             e.printStackTrace();
         }
     }

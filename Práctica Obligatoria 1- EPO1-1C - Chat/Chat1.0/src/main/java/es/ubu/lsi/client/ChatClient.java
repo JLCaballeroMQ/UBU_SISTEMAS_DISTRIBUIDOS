@@ -12,9 +12,22 @@ import java.io.IOException;
  */
 public interface ChatClient {
 
+    /**
+     * Método para iniciar el cliente de chat
+     * @throws IOException
+     */
     public void start() throws IOException;
 
+    /**
+     * Método para el envio de mensajes
+     * @param msg
+     * @throws IOException
+     */
     public void sendMessage(ChatMessage msg) throws IOException;
 
+    /**
+     * Método que cierra todas las conexiones al chat
+     * @throws IOException
+     */
     public void disconnect() throws IOException;
 }

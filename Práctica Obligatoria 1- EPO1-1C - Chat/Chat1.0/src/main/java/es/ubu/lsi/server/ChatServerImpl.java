@@ -16,6 +16,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @Version 1.0
  * Repositorio GitHub: https://github.com/JLCaballeroMQ/UBU_SISTEMAS_DISTRIBUIDOS
  */
+
+/**
+ * Implementación del servidor de chat.
+ * Gestiona la conexión de clientes al servidor, permite enviar mensajes a todos los clientes
+ * y maneja la desconexión de clientes de forma segura.
+ */
 public class ChatServerImpl implements ChatServer {
     private int port;
     private boolean running = false;
@@ -23,10 +29,21 @@ public class ChatServerImpl implements ChatServer {
     private final ConcurrentHashMap<Integer, ServerThreadForClient> clientThreads = new ConcurrentHashMap<>();
     private final AtomicInteger clientIdGenerator = new AtomicInteger(0);
 
+    /**
+     * Constructor que inicializa el servidor en un puerto específico.
+     *
+     * @param port Puerto en el que el servidor aceptará conexiones.
+     */
     public ChatServerImpl(int port) {
         this.port = port;
     }
 
+    /**
+     * Inicia el servidor para que comience a aceptar conexiones de clientes.
+     * Crea un ServerSocket y entra en un bucle que espera conexiones de clientes para atenderlas.
+     *
+     * @throws IOException Si ocurre un error al intentar iniciar el servidor o aceptar conexiones.
+     */
     @Override
     public void startup() throws IOException {
         running = true;
@@ -48,6 +65,11 @@ public class ChatServerImpl implements ChatServer {
         }
     }
 
+    /**
+     * Detiene el servidor cerrando todas las conexiones activas y liberando recursos.
+     *
+     * @throws IOException Si ocurre un error al cerrar el servidor o las conexiones de clientes.
+     */
     @Override
     public void shutdown() throws IOException {
         running = false;
@@ -60,6 +82,11 @@ public class ChatServerImpl implements ChatServer {
         System.out.println("Servidor Chat apagandose.");
     }
 
+    /**
+     * Envia un mensaje a todos los clientes conectados al servidor.
+     *
+     * @param message El mensaje a enviar a todos los clientes.
+     */
     @Override
     public void broadcast(ChatMessage message) {
         for (ServerThreadForClient clientThread : clientThreads.values()) {
@@ -67,6 +94,11 @@ public class ChatServerImpl implements ChatServer {
         }
     }
 
+    /**
+     * Elimina a un cliente de la lista de clientes activos, usualmente debido a una desconexión.
+     *
+     * @param id El ID único del cliente a eliminar.
+     */
     @Override
     public void remove(int id) {
         ServerThreadForClient clientThread = clientThreads.remove(id);
@@ -74,12 +106,23 @@ public class ChatServerImpl implements ChatServer {
             clientThread.interrupt();
         }
     }
+
+    /**
+     * Clase interna que gestiona la comunicación con un cliente conectado.
+     * Lee mensajes del cliente y los retransmite al resto de clientes conectados.
+     */
     private class ServerThreadForClient extends Thread {
         private Socket socket;
         private ObjectOutputStream out;
         private ObjectInputStream in;
         private final int clientId;
 
+        /**
+         * Constructor que inicializa el hilo de atención al cliente.
+         *
+         * @param socket Socket de conexión con el cliente.
+         * @param clientId ID único asignado al cliente.
+         */
         public ServerThreadForClient(Socket socket, int clientId) {
             this.socket = socket;
             this.clientId = clientId;
@@ -91,6 +134,9 @@ public class ChatServerImpl implements ChatServer {
             }
         }
 
+        /**
+         * Se ejecuta el hilo que lee todos los mensajes
+         */
         public void run() {
             try {
                 ChatMessage messageInput;
@@ -119,6 +165,10 @@ public class ChatServerImpl implements ChatServer {
             }
         }
 
+        /**
+         * Envio de mensajes para todos los usuarios
+         * @param message
+         */
         public void sendMessage(ChatMessage message) {
             try {
                 out.writeObject(message);
